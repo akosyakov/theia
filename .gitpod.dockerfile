@@ -1,4 +1,4 @@
-FROM gitpod/workspace-full-vnc:latest
+FROM gitpod/workspace-dotnet-vnc:latest
 
 USER root
 # Install custom tools, runtime, etc.
