@@ -158,6 +158,7 @@ export interface PluginManagerInitializeParams {
     workspaceState: KeysToKeysToAnyValue
     env: EnvInit
     extApi?: ExtPluginApi[]
+    webview: WebviewInitData
 }
 
 export interface PluginManagerStartParams {
@@ -1214,6 +1215,11 @@ export interface LanguagesMain {
     $registerRenameProvider(handle: number, pluginInfo: PluginInfo, selector: SerializedDocumentFilter[], supportsResoveInitialValues: boolean): void;
 }
 
+export interface WebviewInitData {
+    webviewResourceRoot: string
+    webviewCspSource: string
+}
+
 export interface WebviewPanelViewState {
     readonly active: boolean;
     readonly visible: boolean;
@@ -1237,8 +1243,7 @@ export interface WebviewsMain {
         viewType: string,
         title: string,
         showOptions: theia.WebviewPanelShowOptions,
-        options: theia.WebviewPanelOptions & theia.WebviewOptions | undefined,
-        pluginLocation: UriComponents): void;
+        options: theia.WebviewPanelOptions & theia.WebviewOptions): void;
     $disposeWebview(handle: string): void;
     $reveal(handle: string, showOptions: theia.WebviewPanelShowOptions): void;
     $setTitle(handle: string, value: string): void;
