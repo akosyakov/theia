@@ -372,11 +372,14 @@ export class MonacoEditorProvider {
             }, control).then(openedEditor => {
                 referencesController._model = model;
                 referencesController._ignoreModelChangeEvent = false;
-                if (!openedEditor) {
+                if (!openedEditor || !referencesController._widget) {
                     referencesController.closeWidget();
                     return;
                 }
-                if (openedEditor !== control) {
+                if (openedEditor === control) {
+                    referencesController._widget.show(range);
+                    referencesController._widget.focusOnReferenceTree();
+                } else {
                     // preserve the model that it does not get disposed in `referencesController.closeWidget`
                     referencesController._model = undefined;
 
@@ -385,18 +388,12 @@ export class MonacoEditorProvider {
                     control.focus = () => { };
                     referencesController.closeWidget();
                     control.focus = focus;
+                    openedEditor.focus();
 
                     const modelPromise = Promise.resolve(model) as any;
                     modelPromise.cancel = () => { };
-                    openedEditor._contributions['editor.contrib.referencesController'].toggleWidget(range, modelPromise, true);
-                    return;
+                    openedEditor._contributions['editor.contrib.referencesController'].toggleWidget(range, modelPromise, referencesController._peekMode || false);
                 }
-
-                if (referencesController._widget) {
-                    referencesController._widget.show(range);
-                    referencesController._widget.focus();
-                }
-
             }, (e: any) => {
                 referencesController._ignoreModelChangeEvent = false;
                 monaco.error.onUnexpectedError(e);

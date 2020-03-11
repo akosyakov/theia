@@ -72,6 +72,7 @@ declare module monaco.editor {
         readonly _modelData: {
             cursor: ICursor
         } | null;
+        focus(): void;
     }
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/editor/common/controller/cursor.ts#L169
@@ -723,11 +724,18 @@ declare module monaco.referenceSearch {
         references: OneReference[]
     }
 
+    export interface ReferenceTreeElement { }
+
+    export interface ReferenceTree {
+        getFocus(): ReferenceTreeElement[]
+    }
+
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/editor/contrib/gotoSymbol/peek/referencesWidget.ts#L187
     export interface ReferenceWidget {
         show(range: IRange): void;
         hide(): void;
-        focus(): void;
+        focusOnReferenceTree(): void;
+        _tree: ReferenceTree
     }
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/editor/contrib/gotoSymbol/peek/referencesController.ts#L30
@@ -737,6 +745,7 @@ declare module monaco.referenceSearch {
         _model?: ReferencesModel;
         _ignoreModelChangeEvent: boolean;
         _editorService: monaco.editor.ICodeEditorService;
+        _peekMode?: boolean;
         closeWidget(): void;
         _gotoReference(ref: Location): Promise<any>;
         toggleWidget(range: IRange, modelPromise: Promise<ReferencesModel> & { cancel: () => void }, peekMode: boolean): void;
