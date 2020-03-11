@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2018 Red Hat, Inc. and others.
+ * Copyright (C) 2020 TypeFox and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -15,12 +15,15 @@
  ********************************************************************************/
 
 import { ContainerModule } from 'inversify';
-import { CommandContribution } from '@theia/core';
-import { PluginVscodeCommandsContribution } from './plugin-vscode-commands-contribution';
-import { PluginVSCodeEnvironment } from '../common/plugin-vscode-environment';
+import { VSXExtensionResolver } from './vsx-extension-resolver';
+import { PluginDeployerResolver } from '@theia/plugin-ext/lib/common/plugin-protocol';
+import { VSXRegistryAPI } from '../common/vsx-registry-api';
+import { VSXEnvironment } from '../common/vsx-environment';
 
 export default new ContainerModule(bind => {
-    bind(PluginVSCodeEnvironment).toSelf().inSingletonScope();
-    bind(PluginVscodeCommandsContribution).toSelf().inSingletonScope();
-    bind(CommandContribution).toDynamicValue(context => context.container.get(PluginVscodeCommandsContribution));
+    bind(VSXEnvironment).toSelf().inRequestScope();
+    bind(VSXRegistryAPI).toSelf().inSingletonScope();
+
+    bind(VSXExtensionResolver).toSelf().inSingletonScope();
+    bind(PluginDeployerResolver).toService(VSXExtensionResolver);
 });

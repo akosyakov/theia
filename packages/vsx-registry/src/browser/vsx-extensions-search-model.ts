@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2018 Red Hat, Inc. and others.
+ * Copyright (C) 2020 TypeFox and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -14,13 +14,25 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { ContainerModule } from 'inversify';
-import { CommandContribution } from '@theia/core';
-import { PluginVscodeCommandsContribution } from './plugin-vscode-commands-contribution';
-import { PluginVSCodeEnvironment } from '../common/plugin-vscode-environment';
+import { injectable } from 'inversify';
+import { Emitter } from '@theia/core/lib/common/event';
 
-export default new ContainerModule(bind => {
-    bind(PluginVSCodeEnvironment).toSelf().inSingletonScope();
-    bind(PluginVscodeCommandsContribution).toSelf().inSingletonScope();
-    bind(CommandContribution).toDynamicValue(context => context.container.get(PluginVscodeCommandsContribution));
-});
+@injectable()
+export class VSXExtensionsSearchModel {
+
+    protected readonly onDidChangeQueryEmitter = new Emitter<string>();
+    readonly onDidChangeQuery = this.onDidChangeQueryEmitter.event;
+
+    protected _query = '';
+    set query(query: string) {
+        if (this._query === query) {
+            return;
+        }
+        this._query = query;
+        this.onDidChangeQueryEmitter.fire(this._query);
+    }
+    get query(): string {
+        return this._query;
+    }
+
+}

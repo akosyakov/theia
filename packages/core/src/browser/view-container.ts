@@ -18,10 +18,9 @@ import { interfaces, injectable, inject, postConstruct } from 'inversify';
 import { IIterator, toArray, find, some, every, map } from '@phosphor/algorithm';
 import {
     Widget, EXPANSION_TOGGLE_CLASS, COLLAPSED_CLASS, MessageLoop, Message, SplitPanel, BaseWidget,
-    addEventListener, SplitLayout, LayoutItem, PanelLayout, addKeyListener
+    addEventListener, SplitLayout, LayoutItem, PanelLayout, addKeyListener, waitForRevealed
 } from './widgets';
 import { Event, Emitter } from '../common/event';
-import { Deferred } from '../common/promise-util';
 import { Disposable, DisposableCollection } from '../common/disposable';
 import { CommandRegistry } from '../common/command';
 import { MenuModelRegistry, MenuPath, MenuAction } from '../common/menu';
@@ -57,7 +56,6 @@ export class ViewContainerIdentifier {
 export class ViewContainer extends BaseWidget implements StatefulWidget, ApplicationShell.TrackableWidgetProvider {
 
     protected panel: SplitPanel;
-    protected attached = new Deferred<void>();
 
     protected currentPart: ViewContainerPart | undefined;
 
@@ -98,19 +96,7 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
     protected init(): void {
         this.id = this.options.id;
         this.addClass('theia-view-container');
-        const layout = new PanelLayout();
-        this.layout = layout;
-        this.panel = new SplitPanel({
-            layout: new ViewContainerLayout({
-                renderer: SplitPanel.defaultRenderer,
-                orientation: this.orientation,
-                spacing: 2,
-                headerSize: ViewContainerPart.HEADER_HEIGHT,
-                animationDuration: 200
-            }, this.splitPositionHandler)
-        });
-        this.panel.node.tabIndex = -1;
-        layout.addWidget(this.panel);
+        this.initLayout();
 
         const { commandRegistry, menuRegistry, contextMenuRenderer } = this;
         this.toDispose.pushAll([
@@ -146,6 +132,22 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
         if (this.options.progressLocationId) {
             this.toDispose.push(this.progressBarFactory({ container: this.node, insertMode: 'prepend', locationId: this.options.progressLocationId }));
         }
+    }
+
+    protected initLayout(): void {
+        const layout = new PanelLayout();
+        this.layout = layout;
+        this.panel = new SplitPanel({
+            layout: new ViewContainerLayout({
+                renderer: SplitPanel.defaultRenderer,
+                orientation: this.orientation,
+                spacing: 2,
+                headerSize: ViewContainerPart.HEADER_HEIGHT,
+                animationDuration: 200
+            }, this.splitPositionHandler)
+        });
+        this.panel.node.tabIndex = -1;
+        layout.addWidget(this.panel);
     }
 
     protected readonly toDisposeOnCurrentPart = new DisposableCollection();
@@ -345,6 +347,9 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
         if (!this.isVisible && this.lastVisibleState) {
             return this.lastVisibleState;
         }
+        return this.doStoreState();
+    }
+    protected doStoreState(): ViewContainer.State {
         const parts = this.getParts();
         const availableSize = this.containerLayout.getAvailableSize();
         const orientation = this.orientation;
@@ -371,6 +376,9 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
      */
     restoreState(state: ViewContainer.State): void {
         this.lastVisibleState = state;
+        this.doRestoreState(state);
+    }
+    protected doRestoreState(state: ViewContainer.State): void {
         this.setTitleOptions(state.title);
         // restore widgets
         for (const part of state.parts) {
@@ -406,7 +414,7 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
         }
 
         // Restore part sizes
-        this.attached.promise.then(() => {
+        waitForRevealed(this).then(() => {
             this.containerLayout.setPartSizes(partStates.map(partState => partState.relativeSize));
         });
     }
@@ -539,7 +547,6 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
             }
         }
         super.onAfterAttach(msg);
-        requestAnimationFrame(() => this.attached.resolve());
     }
 
     protected onBeforeHide(msg: Message): void {
