@@ -660,17 +660,14 @@ declare module monaco.services {
         overrides: [string, string[]][];
     }
 
-    // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configurationModels.ts#L706
-    export class ConfigurationChangeEvent {
-        constructor(
-            change: IConfigurationChange,
-            previous: { workspace?: any, data: any } | undefined,
-            currentConfiguraiton: Configuration,
-            currentWorkspace?: any);
+    // https://github.com/theia-ide/vscode/blob/b0b47123a5da83d42c2675f2bfff5bb9f1b2673c/src/vs/platform/configuration/common/configuration.ts#L56
+    export class IConfigurationChangeEvent {
 
-        source: ConfigurationTarget;
-        affectsConfiguration(section: string, overrides?: IConfigurationOverrides): boolean;
-        previousConfiguration(): Configuration | undefined;
+        readonly source: ConfigurationTarget;
+        readonly affectedKeys: string[];
+        readonly change: IConfigurationChange;
+
+        affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
     }
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configuration.ts#L25
@@ -681,7 +678,7 @@ declare module monaco.services {
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/editor/standalone/browser/simpleServices.ts#L434
     export interface IConfigurationService {
-        _onDidChangeConfiguration: monaco.Emitter<ConfigurationChangeEvent>;
+        _onDidChangeConfiguration: monaco.Emitter<IConfigurationChangeEvent>;
         _configuration: Configuration;
     }
 
@@ -796,9 +793,9 @@ declare module monaco.services {
     }
 
     // https://github.com/microsoft/vscode/blob/standalone/0.20.x/src/vs/editor/common/services/editorWorkerService.ts#L21
-        export interface IEditorWorkerService {
-            computeMoreMinimalEdits(resource: monaco.Uri, edits: monaco.languages.TextEdit[] | null | undefined): Promise<monaco.languages.TextEdit[] | undefined>;
-        }
+    export interface IEditorWorkerService {
+        computeMoreMinimalEdits(resource: monaco.Uri, edits: monaco.languages.TextEdit[] | null | undefined): Promise<monaco.languages.TextEdit[] | undefined>;
+    }
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/editor/standalone/browser/standaloneServices.ts#L56
     export module StaticServices {

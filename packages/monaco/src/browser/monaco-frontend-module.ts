@@ -22,7 +22,7 @@ import { ContainerModule, decorate, injectable, interfaces } from 'inversify';
 import { MenuContribution, CommandContribution } from '@theia/core/lib/common';
 import {
     QuickOpenService, FrontendApplicationContribution, KeybindingContribution,
-    PreferenceService, PreferenceSchemaProvider, createPreferenceProxy, QuickOpenContribution, PreferenceChanges, PreferenceScope
+    PreferenceService, PreferenceSchemaProvider, createPreferenceProxy, QuickOpenContribution, PreferenceScope, PreferenceChange, OVERRIDE_PROPERTY_PATTERN
 } from '@theia/core/lib/browser';
 import { TextEditorProvider, DiffNavigatorProvider } from '@theia/editor/lib/browser';
 import { StrictEditorTextFocusContext } from '@theia/editor/lib/browser/editor-keybinding-contexts';
@@ -147,7 +147,7 @@ export function createMonacoConfigurationService(container: interfaces.Container
     const service = monaco.services.StaticServices.configurationService.get();
     const _configuration = service._configuration;
 
-    _configuration.getValue = (section, overrides, workspace) => {
+    _configuration.getValue = (section, overrides) => {
         const overrideIdentifier = overrides && 'overrideIdentifier' in overrides && overrides['overrideIdentifier'] as string || undefined;
         const resourceUri = overrides && 'resource' in overrides && !!overrides['resource'] && overrides['resource'].toString();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -160,25 +160,6 @@ export function createMonacoConfigurationService(container: interfaces.Container
         return proxy;
     };
 
-    const parseSections = (changes?: PreferenceChanges) => {
-        if (!changes) {
-            return undefined;
-        }
-        const sections = [];
-        for (let key of Object.keys(changes)) {
-            const hasOverride = key.startsWith('[');
-            while (key) {
-                sections.push(key);
-                if (hasOverride && key.indexOf('.') !== -1) {
-                    sections.push(key.substr(key.indexOf('.')));
-                }
-                const index = key.lastIndexOf('.');
-                key = key.substring(0, index);
-            }
-        }
-        return sections;
-    };
-
     const toTarget = (scope: PreferenceScope): monaco.services.ConfigurationTarget => {
         switch (scope) {
             case PreferenceScope.Default: return monaco.services.ConfigurationTarget.DEFAULT;
@@ -188,25 +169,94 @@ export function createMonacoConfigurationService(container: interfaces.Container
         }
     };
 
-    preferences.onPreferencesChanged((changes?: PreferenceChanges) => {
-        const affectedSections = parseSections(changes);
-
-        let target: monaco.services.ConfigurationTarget | undefined;
-        if (changes && affectedSections && affectedSections.length > 0) {
-            const change = changes[affectedSections[0]];
-            target = toTarget(change.scope);
+    interface FireDidChangeConfigurationContext {
+        changes: PreferenceChange[];
+        affectedKeys: Set<string>;
+        keys: Set<string>;
+        overrides: Map<string, Set<string>>
+    }
+    const newFireDidChangeConfigurationContext = (): FireDidChangeConfigurationContext => ({
+        changes: [],
+        affectedKeys: new Set<string>(),
+        keys: new Set<string>(),
+        overrides: new Map<string, Set<string>>()
+    });
+    const fireDidChangeConfiguration = (source: monaco.services.ConfigurationTarget, context: FireDidChangeConfigurationContext): void => {
+        if (!context.affectedKeys.size) {
+            return;
         }
-
-        if (affectedSections) {
-            const keys = affectedSections || [];
-            const previous = { data: service._configuration.toData() };
-            const event = new monaco.services.ConfigurationChangeEvent({ keys, overrides: [] }, previous, service._configuration);
-
-            if (target) {
-                event.source = target;
+        const overrides: [string, string[]][] = [];
+        for (const [override, values] of context.overrides) {
+            overrides.push([override, [...values]]);
+        }
+        service._onDidChangeConfiguration.fire({
+            change: {
+                keys: [...context.keys],
+                overrides
+            },
+            affectedKeys: [...context.affectedKeys],
+            source,
+            affectsConfiguration: (prefix, overrides) => {
+                if (!context.affectedKeys.has(prefix)) {
+                    return false;
+                }
+                for (const change of context.changes) {
+                    const overridden = preferences.overriddenPreferenceName(change.preferenceName);
+                    const preferenceName = overridden ? overridden.preferenceName : change.preferenceName;
+                    if (preferenceName.startsWith(prefix)) {
+                        if (overrides?.overrideIdentifier !== undefined) {
+                            if (overridden && overridden.overrideIdentifier !== overrides?.overrideIdentifier) {
+                                continue;
+                            }
+                        }
+                        if (change.affects(overrides?.resource?.toString())) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
+        });
+    };
 
-            service._onDidChangeConfiguration.fire(event);
+    preferences.onPreferencesChanged(event => {
+        let source: monaco.services.ConfigurationTarget | undefined;
+        let context = newFireDidChangeConfigurationContext();
+        for (let key of Object.keys(event)) {
+            const change = event[key];
+            const target = toTarget(change.scope);
+            if (source !== undefined && target !== source) {
+                fireDidChangeConfiguration(source, context);
+                context = newFireDidChangeConfigurationContext();
+            }
+            context.changes.push(change);
+            source = target;
+
+            let overrideKeys: Set<string> | undefined;
+            if (key.startsWith('[')) {
+                const index = key.indexOf('.');
+                const override = key.substring(0, index);
+                const overrideIdentifier = override.match(OVERRIDE_PROPERTY_PATTERN)?.[1];
+                if (overrideIdentifier) {
+                    context.keys.add(override)
+                    context.affectedKeys.add(override);
+                    overrideKeys = context.overrides.get(overrideIdentifier) || new Set<string>();
+                    context.overrides.set(overrideIdentifier, overrideKeys);
+                    key = key.substring(index + 1);
+                }
+            }
+            while (key) {
+                if (overrideKeys) {
+                    overrideKeys.add(key);
+                }
+                context.keys.add(key);
+                context.affectedKeys.add(key);
+                const index = key.lastIndexOf('.');
+                key = key.substring(0, index);
+            }
+        }
+        if (source) {
+            fireDidChangeConfiguration(source, context);
         }
     });
 
